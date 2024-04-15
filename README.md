@@ -369,7 +369,12 @@ We wrote a [detailed integration guide for Laravel Scribe](https://github.com/sc
 
 ### With Rust
 
-There’s [a wonderful package to generate OpenAPI files for Rust](https://github.com/tamasfe/aide) already. Just set the `api_route` to use `Scalar` to get started:
+If you're using Rust, you can easily generate an OpenAPI spec file with the [aide][aide] or [utoipa][utoipa] crates. Both crates support Axum, while Utoipa also supports Actix Web, Rocket, Tide, and Warp.
+
+If you are using Aide, just set the `api_route` to use `Scalar` to get started:
+
+[aide]: https://crates.io/crates/aide
+[utoipa]: https://crates.io/crates/utoipa
 
 ```rust
 use aide::{
@@ -393,6 +398,50 @@ use aide::{
             |p| p.security_requirement("ApiKey"),
         )
         ...
+```
+
+For Utoipa users, use procedural macros to build your OpenAPI spec, and derive models from your data types:
+
+See the [utopia documentation](https://docs.rs/utopia) for more information.
+
+```rust
+use utopia::{OpenApi, ToSchema};
+use utopia_scalar::{Scalar, Servable};
+
+#[derive(ToSchema)]
+struct Pet {
+   id: u64,
+   name: String,
+   age: Option<i32>,
+}
+
+#[derive(OpenApi)]
+#[openapi(paths(get_pet_by_id), components(schemas(Pet)))]
+struct ApiDoc;
+
+#[utoipa::path(
+    get,
+    path = "/pets/{id}",
+    responses(
+        (status = 200, description = "Pet found successfully", body = Pet),
+        (status = NOT_FOUND, description = "Pet was not found")
+    ),
+    params(
+        ("id" = u64, Path, description = "Pet database id to get Pet for"),
+    )
+)]
+async fn get_pet_by_id(pet_id: u64) -> Pet {
+    Pet {
+        id: pet_id,
+        age: None,
+        name: "lightning".to_string(),
+    }
+}
+
+// In your Axum app
+let app = Router::new()
+        .merge(Scalar::with_url("/scalar", ApiDoc::openapi()))
+        .route("/pets/:id", get(get_pet_by_id));
 ```
 
 ## Hosted API Reference
